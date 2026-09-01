@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23cda65a'/%3E%3Ccircle cx='16' cy='16' r='9.5' fill='none' stroke='%23160f04' stroke-width='1.6'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="/assets/app.css?v=3">
+<link rel="stylesheet" href="/assets/app.css?v=4">
 <title>Panel Admin — Bukti &amp; Testimoni</title>
 </head>
 <body>
@@ -37,6 +37,17 @@
   function fmtDate(iso) {
     try { return new Date(iso).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }); }
     catch (e) { return ""; }
+  }
+  function pad2(n) { return (n < 10 ? "0" : "") + n; }
+  // nilai untuk <input type="date"> — pakai komponen UTC agar cocok dgn penyimpanan (tengah hari UTC)
+  function toDateInput(iso) {
+    var d = iso ? new Date(iso) : new Date();
+    if (isNaN(d.getTime())) d = new Date();
+    return d.getUTCFullYear() + "-" + pad2(d.getUTCMonth() + 1) + "-" + pad2(d.getUTCDate());
+  }
+  function todayInput() {
+    var d = new Date();
+    return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
   }
   function newTmp() { return "q" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
   function idxOf(id) { for (var i = 0; i < state.items.length; i++) if (state.items[i].id === id) return i; return -1; }
@@ -200,6 +211,9 @@
       '<div class="qfields">' +
         '<textarea data-q-caption="' + esc(q.tmp) + '" maxlength="280" placeholder="Keterangan (tampil di bawah foto)">' + esc(q.caption) + "</textarea>" +
         '<input data-q-label="' + esc(q.tmp) + '" maxlength="80" placeholder="Label singkat — opsional" value="' + esc(q.label) + '">' +
+        '<label class="date-field">Tanggal tampil' +
+          '<input type="date" data-q-date="' + esc(q.tmp) + '" value="' + esc(q.date || todayInput()) + '">' +
+        "</label>" +
       "</div>" +
       '<button class="mini-del" type="button" data-q-del="' + esc(q.tmp) + '" title="Buang dari antrean">&times;</button>' +
     "</div>";
@@ -212,6 +226,9 @@
         '<div class="qfields">' +
           '<textarea data-e-caption="' + esc(t.id) + '" maxlength="280">' + esc(t.caption) + "</textarea>" +
           '<input data-e-label="' + esc(t.id) + '" maxlength="80" placeholder="Label singkat — opsional" value="' + esc(t.label || "") + '">' +
+          '<label class="date-field">Tanggal tampil' +
+            '<input type="date" data-e-date="' + esc(t.id) + '" value="' + esc(toDateInput(t.date)) + '">' +
+          "</label>" +
           '<div class="row-actions">' +
             '<button class="submit sm" type="button" data-e-save="' + esc(t.id) + '">Simpan</button>' +
             '<button class="btn-ghost sm" type="button" data-e-cancel="1">Batal</button>' +
@@ -279,7 +296,7 @@
     var ok = 0, fails = [];
     Promise.all(files.map(function (f) {
       return processImage(f)
-        .then(function (u) { queue.push({ tmp: newTmp(), image: u, caption: "", label: "" }); ok++; })
+        .then(function (u) { queue.push({ tmp: newTmp(), image: u, caption: "", label: "", date: todayInput() }); ok++; })
         .catch(function (e) {
           fails.push((f.name || "foto") + " — " + (e && e.message ? e.message : "gagal diproses"));
         });
@@ -314,7 +331,7 @@
     if (btn) btn.disabled = true;
     setStatus("Menerbitkan " + queue.length + " testimoni…");
     try {
-      var payload = { items: queue.map(function (q) { return { image: q.image, caption: q.caption.trim(), label: (q.label || "").trim() }; }) };
+      var payload = { items: queue.map(function (q) { return { image: q.image, caption: q.caption.trim(), label: (q.label || "").trim(), date: q.date || "" }; }) };
       var res = await api("/api/testimonials", { method: "POST", body: JSON.stringify(payload) });
       state.items = res.items || state.items;
       queue = [];
@@ -351,12 +368,13 @@
   async function saveEdit(id) {
     var capEl = document.querySelector('[data-e-caption="' + id + '"]');
     var labEl = document.querySelector('[data-e-label="' + id + '"]');
+    var dateEl = document.querySelector('[data-e-date="' + id + '"]');
     if (!capEl) return;
     var cap = capEl.value.trim(), lab = (labEl ? labEl.value : "").trim();
     if (cap.length < 3) { setStatus("Keterangan minimal 3 karakter.", true); return; }
     try {
       var res = await api("/api/testimonials/" + encodeURIComponent(id), {
-        method: "PUT", body: JSON.stringify({ caption: cap, label: lab }),
+        method: "PUT", body: JSON.stringify({ caption: cap, label: lab, date: dateEl ? dateEl.value : "" }),
       });
       state.items = res.items || state.items;
       editingId = null;
@@ -439,6 +457,11 @@
         var d = ev.target.dataset;
         if (d.qCaption != null) setQueueField(d.qCaption, "caption", ev.target.value);
         else if (d.qLabel != null) setQueueField(d.qLabel, "label", ev.target.value);
+        else if (d.qDate != null) setQueueField(d.qDate, "date", ev.target.value);
+      });
+      con.addEventListener("change", function (ev) {
+        var d = ev.target.dataset;
+        if (d.qDate != null) setQueueField(d.qDate, "date", ev.target.value);
       });
 
       con.addEventListener("click", function (ev) {

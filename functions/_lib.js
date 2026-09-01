@@ -176,6 +176,22 @@ export function checkImage(v, max = MAX_IMG, field = "Gambar") {
   return s;
 }
 
+// Terima "YYYY-MM-DD" (dari <input type=date>) atau ISO penuh.
+// Disimpan sebagai ISO tengah hari UTC supaya tanggal kalendernya stabil di semua zona waktu.
+export function sanitizeDate(v, fallbackISO) {
+  const s = String(v == null ? "" : v).trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (m) {
+    const d = new Date(s + "T12:00:00.000Z");
+    if (!isNaN(d.getTime())) return d.toISOString();
+  }
+  if (s) {
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) return d.toISOString();
+  }
+  return fallbackISO;
+}
+
 export function sanitizeItem(input) {
   const image = checkImage(input && input.image);
   const caption = String((input && input.caption) || "").trim().slice(0, 280);

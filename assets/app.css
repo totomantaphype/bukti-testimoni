@@ -97,6 +97,8 @@ a{color:inherit}
 .qfields textarea,.qfields input{width:100%;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;color:var(--ink);font:inherit;font-size:.92rem;padding:.55rem .7rem}
 .qfields textarea{min-height:62px;resize:vertical;line-height:1.5}
 .qfields textarea:focus,.qfields input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(205,166,90,.15)}
+.date-field{display:flex;align-items:center;gap:.6rem;font-family:var(--mono);font-size:.6rem;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+.date-field input[type=date]{width:auto;flex:0 0 auto;color-scheme:dark;font-size:.86rem;padding:.42rem .55rem}
 .rowlist{display:grid;gap:.7rem}
 .rowitem{display:grid;grid-template-columns:60px 1fr;gap:.85rem;align-items:center;border:1px solid var(--line);border-radius:10px;padding:.6rem}
 .rowitem .rthumb{width:60px;height:60px}

@@ -1,8 +1,8 @@
 import {
-  json, HttpError, requireAuth, readState, writeState, readJson,
+  json, HttpError, requireAuth, readState, writeState, readJson, sanitizeDate,
 } from "../../_lib.js";
 
-// PUT /api/testimonials/:id   { caption, label }  -> ubah teks
+// PUT /api/testimonials/:id   { caption, label, date }  -> ubah teks/tanggal
 export async function onRequestPut({ request, env, params }) {
   await requireAuth(request, env);
   const body = await readJson(request);
@@ -18,6 +18,9 @@ export async function onRequestPut({ request, env, params }) {
 
   it.caption = caption;
   it.label = label;
+  if (body && body.date != null && String(body.date).trim() !== "") {
+    it.date = sanitizeDate(body.date, it.date);
+  }
   await writeState(env, state);
   return json({ item: it, items: state.items });
 }
