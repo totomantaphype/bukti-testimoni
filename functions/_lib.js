@@ -113,6 +113,7 @@ export function defaultSite() {
     logo: "",
     heading: "Bukti & testimoni klien",
     intro: "",
+    ticker: "",
   };
 }
 
@@ -212,6 +213,7 @@ export function sanitizeSite(input) {
     logo,
     heading: g("heading", 80),
     intro: g("intro", 400),
+    ticker: g("ticker", 300),
   };
 }
 

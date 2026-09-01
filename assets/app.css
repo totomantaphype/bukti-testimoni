@@ -51,6 +51,34 @@ a{color:inherit}
 .intro h1::after{content:"";display:block;width:52px;height:3px;margin:.95rem auto 0;border-radius:2px;background:linear-gradient(90deg,var(--accent),var(--accent-2))}
 .intro .lede{margin:1rem auto 0;max-width:60ch;font-size:1.1rem;color:var(--ink-dim)}
 
+/* ticker berjalan + kotak pencarian */
+.tickerbar{display:flex;align-items:stretch;gap:14px;margin:.2rem 0 1.6rem;flex-wrap:wrap}
+.ticker{flex:1 1 320px;min-width:0;overflow:hidden;display:flex;align-items:center;
+  border:1px solid var(--line);border-left:2px solid var(--accent);border-radius:10px;background:var(--surface);
+  color:var(--ink-dim);font-family:var(--mono);font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;padding:.62rem 0;
+  -webkit-mask:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent);mask:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent)}
+.tk-track{display:flex;align-items:center;white-space:nowrap;will-change:transform;animation:tk-scroll 32s linear infinite}
+.ticker:hover .tk-track{animation-play-state:paused}
+.tk-seq{display:inline-flex;align-items:center;padding-left:1.4rem}
+.tk-item{display:inline-block}
+.tk-sep{color:var(--accent);font-size:.62em;margin:0 1.1rem;flex:none}
+@keyframes tk-scroll{to{transform:translateX(-50%)}}
+.gallery-search{flex:0 0 auto;display:flex;align-items:center}
+.gallery-search input{width:min(260px,44vw);background:var(--surface);border:1px solid var(--line-strong);border-radius:10px;
+  color:var(--ink);font:inherit;font-size:.9rem;padding:.62rem .85rem;color-scheme:dark}
+.gallery-search input::placeholder{color:var(--muted)}
+.gallery-search input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(205,166,90,.15)}
+@media (max-width:640px){
+  .tickerbar{gap:10px}
+  .gallery-search,.gallery-search input{width:100%}
+}
+@media (prefers-reduced-motion:reduce){
+  .tk-track{animation:none;white-space:normal;flex-wrap:wrap}
+  .tk-dup{display:none}
+  .tk-seq .tk-sep:last-child{display:none}
+  .ticker{-webkit-mask:none;mask:none}
+}
+
 .status{font-family:var(--mono);font-size:.74rem;line-height:1.5;color:var(--good);min-height:1em;margin:0}
 .status.err{color:var(--bad)}
 

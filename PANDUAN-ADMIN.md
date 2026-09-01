@@ -39,10 +39,9 @@ Bikin `SESSION_SECRET` acak: di terminal jalankan
 
 ## 4. Redeploy
 
-Supaya binding aktif, jalankan deploy ulang:
-
-- GitHub → **Actions** → workflow **Deploy ke Cloudflare Pages** → **Run workflow**, atau
-- push commit apa pun ke `main`.
+Supaya binding aktif, jalankan deploy ulang: push commit apa pun ke `main`
+(Cloudflare Pages otomatis build ~1–2 menit), atau di dashboard project **`bukti-testimoni`**
+→ tab **Deployments** → **Retry deployment** pada deploy terakhir.
 
 ---
 
@@ -57,8 +56,13 @@ Supaya binding aktif, jalankan deploy ulang:
    konversi pertama agak lama karena memuat komponen ~1,3 MB). Bila sebuah foto gagal,
    pesan status menyebut nama file + alasannya; foto lain yang berhasil tetap masuk antrean.
 4. **Kelola**: tombol ↑ ↓ untuk urutan, **Ubah** untuk teks & tanggal, **Hapus** untuk buang.
-5. **Nama / logo / teks sambutan**: buka blok "Nama, logo & teks sambutan" →
-   ubah → **Simpan tampilan**.
+5. **Nama / logo / teks sambutan / ticker**: buka blok "Nama, logo & teks sambutan" →
+   ubah → **Simpan tampilan**. **Teks berjalan / ticker** tampil di bawah judul halaman
+   utama; tulis 1 baris untuk 1 pesan (beberapa baris = beberapa pesan yang berjalan
+   bergantian). Kosongkan bila tak ingin ada ticker.
+
+Di halaman utama ada juga **kotak pencarian** di kanan ticker — pengunjung mengetik kata
+kunci untuk menyaring testimoni berdasarkan keterangan / label (tidak perlu diatur di admin).
 
 Perubahan langsung tersimpan di server; halaman publik menyusul dalam ~1 menit (cache).
 

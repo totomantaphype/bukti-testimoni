@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23cda65a'/%3E%3Ccircle cx='16' cy='16' r='9.5' fill='none' stroke='%23160f04' stroke-width='1.6'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="/assets/app.css?v=4">
+<link rel="stylesheet" href="/assets/app.css?v=5">
 <title>Arta Nusantara — Bukti &amp; Testimoni</title>
 </head>
 <body>
@@ -20,8 +20,9 @@
   "use strict";
 
   var root = document.getElementById("root");
-  var DEFAULT_SITE = { name: "Arta Nusantara", initials: "AN", logo: "", heading: "Bukti & testimoni klien", intro: "" };
+  var DEFAULT_SITE = { name: "Arta Nusantara", initials: "AN", logo: "", heading: "Bukti & testimoni klien", intro: "", ticker: "" };
   var state = { items: [], site: DEFAULT_SITE };
+  var query = "";
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -45,12 +46,6 @@
       '</a><div class="head-actions"></div>' +
     "</div></header>";
   }
-  function footerHTML() {
-    return '<footer class="foot wrap">' +
-      "<span>&copy; " + new Date().getFullYear() + " " + esc(state.site.name || "") + ".</span>" +
-      '<span><a href="/app/admin/">Kelola</a></span>' +
-    "</footer>";
-  }
   function overlaysHTML() {
     return '<div id="lightbox" class="lightbox" hidden>' +
       '<button class="lb-close" id="lbClose" type="button" aria-label="Tutup">&times;</button>' +
@@ -67,19 +62,57 @@
       "</figcaption>" +
     "</figure>";
   }
+  function tickerHTML() {
+    var raw = (state.site.ticker || "").trim();
+    if (!raw) return "";
+    var items = raw.split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean);
+    if (!items.length) return "";
+    var sep = '<span class="tk-sep" aria-hidden="true">&#9670;</span>';
+    var inner = items.map(function (x) { return '<span class="tk-item">' + esc(x) + "</span>"; }).join(sep) + sep;
+    return '<div class="ticker" aria-label="Info berjalan"><div class="tk-track">' +
+      '<span class="tk-seq">' + inner + "</span>" +
+      '<span class="tk-seq tk-dup" aria-hidden="true">' + inner + "</span>" +
+    "</div></div>";
+  }
+  function searchHTML() {
+    if (!state.items.length) return "";
+    return '<div class="gallery-search">' +
+      '<input id="q" type="search" placeholder="Cari testimoni…" autocomplete="off" aria-label="Cari testimoni" value="' + esc(query) + '">' +
+    "</div>";
+  }
+  function tickerbarHTML() {
+    var t = tickerHTML(), s = searchHTML();
+    if (!t && !s) return "";
+    return '<div class="tickerbar">' + t + s + "</div>";
+  }
+  function visibleItems() {
+    var q = query.trim().toLowerCase();
+    if (!q) return state.items;
+    return state.items.filter(function (t) {
+      return ((t.caption || "") + " " + (t.label || "")).toLowerCase().indexOf(q) > -1;
+    });
+  }
+  function resultsHTML() {
+    var n = state.items.length;
+    if (!n) return '<div class="empty"><p>Belum ada bukti.</p></div>';
+    var items = visibleItems(), k = items.length, q = query.trim();
+    var head = q
+      ? '<div class="gallery-head"><h2><span class="count">' + k + "</span> dari " + n + " testimoni klien</h2></div>"
+      : '<div class="gallery-head"><h2><span class="count" data-to="' + n + '">' + n + "</span> testimoni klien</h2></div>";
+    var body = k
+      ? '<div id="grid" class="gallery">' + items.map(cardHTML).join("") + "</div>"
+      : '<div class="empty"><p>Tak ada testimoni yang cocok dengan &ldquo;' + esc(q) + "&rdquo;.</p></div>";
+    return head + body;
+  }
   function galleryHTML() {
     var s = state.site;
-    var n = state.items.length;
     var head = (s.heading || s.intro)
       ? '<section class="intro">' +
           (s.heading ? "<h1>" + esc(s.heading) + "</h1>" : "") +
           (s.intro ? '<p class="lede">' + escLines(s.intro) + "</p>" : "") +
         "</section>"
       : '<div style="height:clamp(2rem,5vw,3rem)"></div>';
-    return head + (n
-      ? '<div class="gallery-head"><h2><span class="count" data-to="' + n + '">' + n + "</span> testimoni klien</h2></div>" +
-        '<div id="grid" class="gallery">' + state.items.map(cardHTML).join("") + "</div>"
-      : '<div class="empty"><p>Belum ada bukti.</p></div>');
+    return head + tickerbarHTML() + '<div id="results">' + resultsHTML() + "</div>";
   }
 
   function openLightbox(src, cap) {
@@ -137,20 +170,31 @@
     for (var j = 0; j < els.length; j++) io.observe(els[j]);
   }
 
+  function bindGrid() {
+    var grid = document.getElementById("grid");
+    if (!grid) return;
+    grid.addEventListener("click", function (ev) {
+      var im = ev.target.closest("img[data-full]");
+      if (!im) return;
+      var fig = im.closest(".shot");
+      var cap = fig ? fig.querySelector("figcaption p") : null;
+      openLightbox(im.getAttribute("src"), cap ? cap.textContent : "");
+    });
+  }
+  function renderResults() {
+    var box = document.getElementById("results");
+    if (!box) return;
+    box.innerHTML = resultsHTML();
+    bindGrid();
+    revealShots();
+  }
   function render() {
     document.title = (state.site.name || "Arta Nusantara") + " — Bukti & Testimoni";
-    root.innerHTML = headerHTML() + '<main class="wrap">' + galleryHTML() + "</main>" + overlaysHTML() + footerHTML();
+    root.innerHTML = headerHTML() + '<main class="wrap">' + galleryHTML() + "</main>" + overlaysHTML();
 
-    var grid = document.getElementById("grid");
-    if (grid) {
-      grid.addEventListener("click", function (ev) {
-        var im = ev.target.closest("img[data-full]");
-        if (!im) return;
-        var fig = im.closest(".shot");
-        var cap = fig ? fig.querySelector("figcaption p") : null;
-        openLightbox(im.getAttribute("src"), cap ? cap.textContent : "");
-      });
-    }
+    bindGrid();
+    var qi = document.getElementById("q");
+    if (qi) qi.addEventListener("input", function () { query = qi.value; renderResults(); });
     document.getElementById("lbClose").addEventListener("click", closeLightbox);
     document.getElementById("lightbox").addEventListener("click", function (ev) {
       if (ev.target === this) closeLightbox();

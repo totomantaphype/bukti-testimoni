@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23cda65a'/%3E%3Ccircle cx='16' cy='16' r='9.5' fill='none' stroke='%23160f04' stroke-width='1.6'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="/assets/app.css?v=4">
+<link rel="stylesheet" href="/assets/app.css?v=5">
 <title>Panel Admin — Bukti &amp; Testimoni</title>
 </head>
 <body>
@@ -20,7 +20,7 @@
   "use strict";
 
   var root = document.getElementById("root");
-  var DEFAULT_SITE = { name: "Arta Nusantara", initials: "AN", logo: "", heading: "Bukti & testimoni klien", intro: "" };
+  var DEFAULT_SITE = { name: "Arta Nusantara", initials: "AN", logo: "", heading: "Bukti & testimoni klien", intro: "", ticker: "" };
   var state = { items: [], site: DEFAULT_SITE };
   var queue = [];
   var editingId = null;
@@ -200,6 +200,8 @@
           '<input id="s_heading" maxlength="80" value="' + esc(s.heading) + '"></div>' +
         '<div class="field"><label for="s_intro">Teks di bawah judul <span class="opt">boleh dikosongkan</span></label>' +
           '<textarea id="s_intro" maxlength="400">' + esc(s.intro) + "</textarea></div>" +
+        '<div class="field"><label for="s_ticker">Teks berjalan / ticker <span class="opt">tampil di bawah judul &middot; 1 baris = 1 pesan &middot; boleh dikosongkan</span></label>' +
+          '<textarea id="s_ticker" maxlength="300" placeholder="Terima kasih atas kepercayaan Anda&#10;Melayani klien sejak 2019">' + esc(s.ticker) + "</textarea></div>" +
         '<button type="submit" class="submit sm">Simpan tampilan</button>' +
       "</form>" +
     "</details>";
@@ -390,6 +392,7 @@
       initials: v("s_initials").trim(),
       heading: v("s_heading").trim(),
       intro: v("s_intro").trim(),
+      ticker: v("s_ticker").trim(),
     };
     if (pendingLogo !== undefined) payload.logo = pendingLogo;
     setStatus("Menyimpan tampilan…");
