@@ -64,18 +64,45 @@
   }
 
   /* ---------- gambar ---------- */
+  var IMG_EXT = /\.(jpe?g|png|gif|webp|bmp|heic|heif)$/i;
+  function isHeic(file) {
+    return /image\/(heic|heif)/i.test(file.type || "") || /\.(heic|heif)$/i.test(file.name || "");
+  }
+  var _heicReady;
+  function loadHeic2any() {
+    if (window.heic2any) return Promise.resolve();
+    if (!_heicReady) {
+      _heicReady = new Promise(function (resolve, reject) {
+        var s = document.createElement("script");
+        s.src = "/assets/heic2any.min.js?v=1";
+        s.onload = function () { resolve(); };
+        s.onerror = function () { _heicReady = null; reject(new Error("konverter HEIC gagal dimuat")); };
+        document.head.appendChild(s);
+      });
+    }
+    return _heicReady;
+  }
+  // Browser di Windows tak bisa membaca HEIC (foto iPhone) — konversi dulu ke JPEG.
+  function toReadableImage(file) {
+    if (!isHeic(file)) return Promise.resolve(file);
+    setStatus("Mengonversi foto iPhone (HEIC)…");
+    return loadHeic2any()
+      .then(function () { return window.heic2any({ blob: file, toType: "image/jpeg", quality: 0.9 }); })
+      .then(function (res) { return Array.isArray(res) ? res[0] : res; })
+      .catch(function () { throw new Error("foto HEIC gagal dikonversi"); });
+  }
   function loadImage(file) {
     return new Promise(function (resolve, reject) {
-      if (!file || !/^image\//.test(file.type)) { reject(new Error("Bukan berkas gambar.")); return; }
+      if (!file) { reject(new Error("berkas kosong")); return; }
       var url = URL.createObjectURL(file);
       var img = new Image();
       img.onload = function () { URL.revokeObjectURL(url); resolve(img); };
-      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error("Gagal membaca gambar.")); };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error("format tidak didukung atau berkas rusak")); };
       img.src = url;
     });
   }
   function processImage(file) {
-    return loadImage(file).then(function (img) {
+    return toReadableImage(file).then(loadImage).then(function (img) {
       var scale = Math.min(1, 1400 / Math.max(img.naturalWidth, img.naturalHeight));
       var cw = Math.max(1, Math.round(img.naturalWidth * scale));
       var ch = Math.max(1, Math.round(img.naturalHeight * scale));
@@ -91,7 +118,7 @@
     });
   }
   function processLogo(file) {
-    return loadImage(file).then(function (img) {
+    return toReadableImage(file).then(loadImage).then(function (img) {
       var scale = Math.min(1, 256 / Math.max(img.naturalWidth, img.naturalHeight));
       var cw = Math.max(1, Math.round(img.naturalWidth * scale));
       var ch = Math.max(1, Math.round(img.naturalHeight * scale));
@@ -151,7 +178,7 @@
           '<input id="s_name" maxlength="60" value="' + esc(s.name) + '"></div>' +
         '<div class="field"><label>Logo</label>' +
           '<div class="logo-row">' + prev +
-            '<label class="btn-ghost sm logo-pick">Unggah logo<input id="s_logo" type="file" accept="image/*" hidden></label>' +
+            '<label class="btn-ghost sm logo-pick">Unggah logo<input id="s_logo" type="file" accept="image/*,.heic,.heif" hidden></label>' +
             (s.logo ? '<button type="button" class="btn-ghost sm" id="s_logo_clear">Hapus logo</button>' : "") +
           "</div>" +
           '<p class="hint-sm">PNG transparan disarankan. Bila kosong, dipakai inisial di bawah.</p>' +
@@ -225,9 +252,9 @@
         '<span class="meter' + (warn ? " warn" : "") + '">Ruang terpakai: <b>' + mb.toFixed(1) + " MB</b> / 22 MB</span></div>" +
       siteBlockHTML() +
       '<div class="dropzone" id="dz">' +
-        '<input id="file" type="file" accept="image/*" multiple>' +
+        '<input id="file" type="file" accept="image/*,.heic,.heif" multiple>' +
         '<span class="dz-label"><span class="dz-inner">Pilih atau seret foto testimoni ke sini' +
-        "<small>Bisa banyak sekaligus &middot; JPG/PNG &middot; otomatis dikecilkan</small></span></span>" +
+        "<small>Bisa banyak sekaligus &middot; JPG, PNG, atau HEIC (foto iPhone) &middot; otomatis dikecilkan</small></span></span>" +
       "</div>" +
       '<p id="status" class="status"></p>' + q +
       '<div class="rowlist"><h3>Kelola testimoni terbit (' + state.items.length + ")</h3>" + rows + "</div>" +
@@ -239,17 +266,37 @@
 
   /* ---------- aksi ---------- */
   function addFiles(fileList) {
-    var files = Array.prototype.slice.call(fileList).filter(function (f) { return /^image\//.test(f.type); });
-    if (!files.length) { setStatus("Tidak ada gambar yang dipilih.", true); return; }
-    setStatus("Memproses " + files.length + " gambar…");
-    var ok = 0, bad = 0;
+    var all = Array.prototype.slice.call(fileList);
+    var files = all.filter(function (f) { return /^image\//.test(f.type) || IMG_EXT.test(f.name || ""); });
+    var skipped = all.length - files.length;
+    if (!files.length) {
+      setStatus(all.length
+        ? "Berkas yang dipilih bukan foto — pakai JPG, PNG, atau HEIC (foto iPhone)."
+        : "Tidak ada foto yang dipilih.", true);
+      return;
+    }
+    setStatus("Memproses " + files.length + " foto…");
+    var ok = 0, fails = [];
     Promise.all(files.map(function (f) {
       return processImage(f)
         .then(function (u) { queue.push({ tmp: newTmp(), image: u, caption: "", label: "" }); ok++; })
-        .catch(function () { bad++; });
+        .catch(function (e) {
+          fails.push((f.name || "foto") + " — " + (e && e.message ? e.message : "gagal diproses"));
+        });
     })).then(function () {
       render();
-      setStatus(ok + " foto masuk antrean" + (bad ? ", " + bad + " gagal" : "") + '. Isi keterangan, lalu klik "Terbitkan sekarang".', bad > 0);
+      var msg;
+      if (ok && !fails.length) {
+        msg = ok + ' foto masuk antrean. Isi keterangan tiap foto, lalu klik "Terbitkan sekarang".';
+      } else if (ok) {
+        msg = ok + " foto masuk antrean; " + fails.length + " gagal (" + fails.join("; ") +
+          '). Isi keterangan foto yang berhasil, lalu klik "Terbitkan sekarang".';
+      } else {
+        msg = "Semua foto gagal diproses (" + fails.join("; ") +
+          "). Coba simpan ulang sebagai JPG/PNG, lalu unggah lagi.";
+      }
+      if (skipped > 0) msg += " (" + skipped + " berkas non-foto dilewati.)";
+      setStatus(msg, fails.length > 0 || ok === 0);
     });
   }
   function setQueueField(tmp, key, val) {

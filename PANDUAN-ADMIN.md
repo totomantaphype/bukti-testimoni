@@ -52,6 +52,9 @@ Supaya binding aktif, jalankan deploy ulang:
 2. Login pakai `ADMIN_USER` / `ADMIN_PASS`
 3. **Tambah testimoni**: seret / pilih foto (bisa banyak) → isi keterangan tiap foto
    (+ label opsional) → **Terbitkan sekarang**. Yang baru muncul di urutan teratas.
+   Format: JPG, PNG, atau HEIC (foto iPhone — otomatis dikonversi ke JPG saat diunggah;
+   konversi pertama agak lama karena memuat komponen ~1,3 MB). Bila sebuah foto gagal,
+   pesan status menyebut nama file + alasannya; foto lain yang berhasil tetap masuk antrean.
 4. **Kelola**: tombol ↑ ↓ untuk urutan, **Ubah** untuk teks, **Hapus** untuk buang.
 5. **Nama / logo / teks sambutan**: buka blok "Nama, logo & teks sambutan" →
    ubah → **Simpan tampilan**.
