@@ -1,5 +1,5 @@
 import {
-  json, HttpError, requireAuth, readState, writeState, readJson, sanitizeDate,
+  json, HttpError, requireAuth, readState, writeState, readJson, sanitizeDate, IMG_PREFIX,
 } from "../../_lib.js";
 
 // PUT /api/testimonials/:id   { caption, label, date }  -> ubah teks/tanggal
@@ -32,9 +32,15 @@ export async function onRequestDelete({ request, env, params }) {
 
   const state = await readState(env);
   const before = state.items.length;
+  const removed = state.items.find((x) => x.id === id);
   state.items = state.items.filter((x) => x.id !== id);
   if (state.items.length === before) throw new HttpError(404, "Testimoni tidak ditemukan.");
 
   await writeState(env, state);
+  // Buang juga foto di penyimpanan per-key (kalau ada). Bila gagal, tak apa —
+  // paling jadi file yatim yang tak terpakai.
+  if (removed && removed.img && env.TESTI_KV) {
+    try { await env.TESTI_KV.delete(IMG_PREFIX + removed.img); } catch (e) {}
+  }
   return json({ removed: id, items: state.items });
 }

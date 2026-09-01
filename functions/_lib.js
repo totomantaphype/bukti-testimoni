@@ -105,6 +105,9 @@ export function timingSafeEqual(a, b) {
 
 /* ---------- penyimpanan (Workers KV) ---------- */
 const STATE_KEY = "state";
+// Tiap foto testimoni disimpan di key sendiri: "img:<id>" berisi data URI.
+// "state" cuma menyimpan teks + referensi id, jadi tak lagi kena batas 22 MB.
+export const IMG_PREFIX = "img:";
 
 export function defaultSite() {
   return {
@@ -129,14 +132,20 @@ function coerceState(raw) {
   if (!s.site || typeof s.site !== "object" || Array.isArray(s.site)) s.site = d;
   else for (const k in d) if (typeof s.site[k] !== "string") s.site[k] = d[k];
   s.items = s.items
-    .filter((it) => it && typeof it === "object" && typeof it.image === "string")
-    .map((it) => ({
-      id: String(it.id || newId()),
-      image: it.image,
-      caption: String(it.caption || ""),
-      label: String(it.label || ""),
-      date: String(it.date || new Date().toISOString()),
-    }));
+    .filter((it) => it && typeof it === "object" && (typeof it.img === "string" || typeof it.image === "string"))
+    .map((it) => {
+      const o = {
+        id: String(it.id || newId()),
+        caption: String(it.caption || ""),
+        label: String(it.label || ""),
+        date: String(it.date || new Date().toISOString()),
+        bytes: Number(it.bytes) || 0,
+      };
+      // "img" = foto di penyimpanan baru (per-key); "image" = data URI inline (lama).
+      if (typeof it.img === "string" && it.img) o.img = it.img;
+      else if (typeof it.image === "string" && it.image) o.image = it.image;
+      return o;
+    });
   return s;
 }
 

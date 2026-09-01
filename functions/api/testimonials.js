@@ -1,6 +1,6 @@
 import {
   json, HttpError, requireAuth, readState, writeState,
-  sanitizeItem, sanitizeDate, newId, readJson,
+  sanitizeItem, sanitizeDate, newId, readJson, IMG_PREFIX,
 } from "../_lib.js";
 
 // POST /api/testimonials
@@ -10,6 +10,9 @@ import {
 // Yang baru selalu masuk di urutan paling atas.
 export async function onRequestPost({ request, env }) {
   await requireAuth(request, env);
+  if (!env.TESTI_KV) {
+    throw new HttpError(503, "Penyimpanan (KV) belum dihubungkan di Cloudflare. Lihat PANDUAN-ADMIN.md.");
+  }
   const body = await readJson(request);
 
   const inputs = Array.isArray(body && body.items) ? body.items : [body];
@@ -17,16 +20,22 @@ export async function onRequestPost({ request, env }) {
   if (inputs.length > 30) throw new HttpError(400, "Maksimal 30 foto sekali unggah.");
 
   const now = new Date().toISOString();
-  const additions = inputs.map((raw) => {
-    const clean = sanitizeItem(raw);
-    return {
+  const additions = [];
+  for (const raw of inputs) {
+    const clean = sanitizeItem(raw); // memvalidasi gambar + keterangan + label
+    const imgId = newId();
+    await env.TESTI_KV.put(IMG_PREFIX + imgId, clean.image, {
+      metadata: { size: clean.image.length },
+    });
+    additions.push({
       id: newId(),
-      image: clean.image,
+      img: imgId,
+      bytes: clean.image.length,
       caption: clean.caption,
       label: clean.label,
       date: sanitizeDate(raw && raw.date, now),
-    };
-  });
+    });
+  }
 
   const state = await readState(env);
   state.items = additions.concat(state.items);

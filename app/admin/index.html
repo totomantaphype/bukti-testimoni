@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23cda65a'/%3E%3Ccircle cx='16' cy='16' r='9.5' fill='none' stroke='%23160f04' stroke-width='1.6'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="/assets/app.css?v=6">
+<link rel="stylesheet" href="/assets/app.css?v=7">
 <title>Panel Admin — Bukti &amp; Testimoni</title>
 </head>
 <body>
@@ -114,17 +114,23 @@
   }
   function processImage(file) {
     return toReadableImage(file).then(loadImage).then(function (img) {
-      var scale = Math.min(1, 1400 / Math.max(img.naturalWidth, img.naturalHeight));
-      var cw = Math.max(1, Math.round(img.naturalWidth * scale));
-      var ch = Math.max(1, Math.round(img.naturalHeight * scale));
-      var c = document.createElement("canvas");
-      c.width = cw; c.height = ch;
-      var ctx = c.getContext("2d");
-      ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, cw, ch);
-      ctx.drawImage(img, 0, 0, cw, ch);
-      var out = c.toDataURL("image/jpeg", 0.85);
-      if (out.length > 1500000) out = c.toDataURL("image/jpeg", 0.72);
-      if (out.length > 3400000) throw new Error("Gambar terlalu besar.");
+      function draw(maxDim, q) {
+        var scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+        var cw = Math.max(1, Math.round(img.naturalWidth * scale));
+        var ch = Math.max(1, Math.round(img.naturalHeight * scale));
+        var c = document.createElement("canvas");
+        c.width = cw; c.height = ch;
+        var ctx = c.getContext("2d");
+        ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, cw, ch);
+        ctx.drawImage(img, 0, 0, cw, ch);
+        return c.toDataURL("image/jpeg", q);
+      }
+      // Lebih hemat ruang: sisi terpanjang maks 1200px, mutu turun bertahap
+      // kalau berkas masih besar. Screenshot chat/transfer tetap jelas terbaca.
+      var out = draw(1200, 0.8);
+      if (out.length > 700000) out = draw(1200, 0.68);
+      if (out.length > 1300000) out = draw(1000, 0.62);
+      if (out.length > 2400000) throw new Error("Gambar terlalu besar. Pakai foto yang lebih kecil.");
       return out;
     });
   }
@@ -221,8 +227,11 @@
     "</div>";
   }
 
+  function imgSrc(t) {
+    return t && t.img ? "/api/img/" + encodeURIComponent(t.img) : (t && t.image) || "";
+  }
   function rowItemHTML(t, i) {
-    var thumb = '<div class="rthumb"><img src="' + esc(t.image) + '" alt=""></div>';
+    var thumb = '<div class="rthumb"><img src="' + esc(imgSrc(t)) + '" alt="" loading="lazy"></div>';
     if (editingId === t.id) {
       return '<div class="rowitem" data-id="' + esc(t.id) + '">' + thumb +
         '<div class="qfields">' +
@@ -253,9 +262,21 @@
     "</div>";
   }
 
+  function itemBytes(t) { return t.bytes || (t.image ? t.image.length : 0); }
   function consoleHTML() {
-    var mb = JSON.stringify(state).length / 1048576;
-    var warn = mb > 18;
+    var bytes = 0;
+    for (var bi = 0; bi < state.items.length; bi++) bytes += itemBytes(state.items[bi]);
+    var mb = bytes / 1048576;
+    var warn = mb > 800;
+    var legacy = 0;
+    for (var li = 0; li < state.items.length; li++) if (!state.items[li].img && state.items[li].image) legacy++;
+    var migrateBox = legacy
+      ? '<div class="migrate-box"><p><b>' + legacy + " foto</b> masih di penyimpanan lama " +
+          "(dibatasi 22 MB). Pindahkan ke penyimpanan baru supaya kapasitas jauh lebih besar — " +
+          "foto dan tampilan tidak berubah sedikit pun.</p>" +
+          '<button class="submit sm" type="button" id="migrateBtn">Pindahkan ' + legacy + " foto sekarang</button>" +
+        "</div>"
+      : "";
     var q = queue.length
       ? '<div class="queue">' +
           '<div class="queue-head"><h3>' + queue.length + " foto siap diterbitkan</h3>" +
@@ -268,7 +289,8 @@
       : '<p class="muted-note">Belum ada testimoni terbit.</p>';
     return '<section class="console" id="console">' +
       '<div class="console-bar"><h2>Panel admin</h2>' +
-        '<span class="meter' + (warn ? " warn" : "") + '">Ruang terpakai: <b>' + mb.toFixed(1) + " MB</b> / 22 MB</span></div>" +
+        '<span class="meter' + (warn ? " warn" : "") + '">Ruang terpakai: <b>' + mb.toFixed(1) + " MB</b> / ~1000 MB</span></div>" +
+      migrateBox +
       siteBlockHTML() +
       '<div class="dropzone" id="dz">' +
         '<input id="file" type="file" accept="image/*,.heic,.heif" multiple>' +
@@ -384,6 +406,27 @@
       setStatus("Perubahan disimpan.");
     } catch (e) { setStatus(e.message || "Gagal menyimpan.", true); if (!authed) render(); }
   }
+  async function migrateImages() {
+    var btn = document.getElementById("migrateBtn");
+    if (btn) btn.disabled = true;
+    var total = 0;
+    setStatus("Memindahkan foto ke penyimpanan baru… jangan tutup halaman.");
+    try {
+      for (;;) {
+        var res = await api("/api/migrate", { method: "POST" });
+        state.items = res.items || state.items;
+        total += res.moved || 0;
+        if (!res.remaining) break;
+        setStatus("Memindahkan foto… sisa " + res.remaining);
+      }
+      render();
+      setStatus(total + " foto dipindah ke penyimpanan baru. Kapasitas sekarang jauh lebih besar.");
+    } catch (e) {
+      render();
+      setStatus((e && e.message ? e.message : "Gagal memindahkan foto.") +
+        (total ? " (" + total + " foto sempat dipindah — klik lagi untuk melanjutkan.)" : ""), true);
+    }
+  }
   async function onSaveSite(e) {
     e.preventDefault();
     function v(id) { var el = document.getElementById(id); return el ? el.value : ""; }
@@ -472,6 +515,7 @@
         if (!b) return;
         var d = b.dataset;
         if (b.id === "publishQueue") return publishQueue();
+        if (b.id === "migrateBtn") return migrateImages();
         if (b.id === "s_logo_clear") { pendingLogo = ""; setStatus('Logo akan dihapus saat "Simpan tampilan".'); return; }
         if (d.qDel != null) { queue = queue.filter(function (q) { return q.tmp !== d.qDel; }); render(); return; }
         if (d.up != null) return moveItem(d.up, -1);

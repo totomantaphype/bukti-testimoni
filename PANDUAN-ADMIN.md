@@ -61,10 +61,22 @@ Supaya binding aktif, jalankan deploy ulang: push commit apa pun ke `main`
    utama; tulis 1 baris untuk 1 pesan (beberapa baris = beberapa pesan yang berjalan
    bergantian). Kosongkan bila tak ingin ada ticker.
 
-Di halaman utama ada juga **kotak pencarian** di kanan ticker — pengunjung mengetik kata
-kunci untuk menyaring testimoni berdasarkan keterangan / label (tidak perlu diatur di admin).
+Di halaman utama ada juga **kotak pencarian** di pojok kanan atas (di atas judul) —
+pengunjung mengetik kata kunci untuk menyaring testimoni berdasarkan keterangan / label
+(tidak perlu diatur di admin).
 
 Perubahan langsung tersimpan di server; halaman publik menyusul dalam ~1 menit (cache).
+
+## Penyimpanan foto
+
+- Foto disimpan **satu per satu** di Cloudflare KV (bukan lagi ditumpuk jadi satu paket
+  22 MB). Batas praktis sekarang ~1 GB — cukup untuk ribuan foto, tetap gratis.
+- Meter **"Ruang terpakai"** di panel menunjukkan total ukuran semua foto (dari ~1000 MB).
+- Foto baru otomatis dikecilkan lebih agresif (sisi terpanjang maks 1200 px) — biasanya
+  0,2–0,4 MB per foto. Screenshot chat/transfer tetap jelas.
+- Kalau ada foto lama dari versi sebelumnya, panel menampilkan kotak
+  **"Pindahkan N foto sekarang"** — klik sekali, tunggu selesai. Foto & tampilan tidak
+  berubah. Cukup dilakukan satu kali.
 
 ## Sebelum setup selesai
 

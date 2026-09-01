@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23cda65a'/%3E%3Ccircle cx='16' cy='16' r='9.5' fill='none' stroke='%23160f04' stroke-width='1.6'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="/assets/app.css?v=6">
+<link rel="stylesheet" href="/assets/app.css?v=7">
 <title>Arta Nusantara — Bukti &amp; Testimoni</title>
 </head>
 <body>
@@ -52,9 +52,12 @@
       '<figure><img id="lbImg" alt=""><figcaption id="lbCap"></figcaption></figure>' +
     "</div>";
   }
+  function imgSrc(t) {
+    return t && t.img ? "/api/img/" + encodeURIComponent(t.img) : (t && t.image) || "";
+  }
   function cardHTML(t, i) {
     return '<figure class="shot reveal" data-i="' + (i || 0) + '">' +
-      '<div class="shot-img"><img src="' + esc(t.image) + '" alt="Bukti testimoni" loading="lazy" data-full="1"></div>' +
+      '<div class="shot-img"><img src="' + esc(imgSrc(t)) + '" alt="Bukti testimoni" loading="lazy" data-full="1"></div>' +
       "<figcaption>" +
         (t.label ? '<span class="shot-label">' + esc(t.label) + "</span>" : "") +
         "<p>" + escLines(t.caption) + "</p>" +

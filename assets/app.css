@@ -92,6 +92,10 @@ a{color:inherit}
 .meter{font-family:var(--mono);font-size:.68rem;color:var(--muted)}
 .meter b{color:var(--ink-dim)}
 .meter.warn b{color:var(--bad)}
+.migrate-box{border:1px solid var(--accent);background:rgba(205,166,90,.09);border-radius:12px;padding:1rem 1.05rem;display:grid;gap:.7rem}
+.migrate-box p{font-size:.9rem;line-height:1.55;color:var(--ink-dim);margin:0}
+.migrate-box b{color:var(--ink)}
+.migrate-box .submit.sm{justify-self:start}
 
 .siteblock{border:1px solid var(--line);border-radius:12px;background:var(--surface-2);padding:.3rem .95rem}
 .siteblock summary{font-family:var(--mono);font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-dim);cursor:pointer;padding:.65rem 0;list-style:none}
