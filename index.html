@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="Bukti transaksi dan testimoni klien.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23cda65a'/%3E%3Ccircle cx='16' cy='16' r='9.5' fill='none' stroke='%23160f04' stroke-width='1.6'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/assets/app.css?v=1">
+<title>Arta Nusantara — Bukti &amp; Testimoni</title>
+</head>
+<body>
+<div id="root"><div class="loading">Memuat…</div></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var root = document.getElementById("root");
+  var DEFAULT_SITE = { name: "Arta Nusantara", initials: "AN", logo: "", heading: "Bukti & testimoni klien", intro: "" };
+  var state = { items: [], site: DEFAULT_SITE };
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function escLines(s) { return esc(s).replace(/\r?\n/g, "<br>"); }
+  function fmtDate(iso) {
+    try { return new Date(iso).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }); }
+    catch (e) { return ""; }
+  }
+
+  function headerHTML() {
+    var s = state.site;
+    var mark = s.logo
+      ? '<img class="mark-img" src="' + esc(s.logo) + '" alt="">'
+      : '<span class="mark" aria-hidden="true">' + esc(s.initials || "·") + "</span>";
+    return '<header class="site"><div class="wrap bar">' +
+      '<a class="brand" href="/">' + mark +
+        '<span class="brand-tx"><b>' + esc(s.name || "Perusahaan") + "</b><i>Bukti &amp; Testimoni</i></span>" +
+      '</a><div class="head-actions"></div>' +
+    "</div></header>";
+  }
+  function footerHTML() {
+    return '<footer class="foot wrap">' +
+      "<span>&copy; " + new Date().getFullYear() + " " + esc(state.site.name || "") + ".</span>" +
+      '<span><a href="/app/admin/">Kelola</a></span>' +
+    "</footer>";
+  }
+  function overlaysHTML() {
+    return '<div id="lightbox" class="lightbox" hidden>' +
+      '<button class="lb-close" id="lbClose" type="button" aria-label="Tutup">&times;</button>' +
+      '<figure><img id="lbImg" alt=""><figcaption id="lbCap"></figcaption></figure>' +
+    "</div>";
+  }
+  function cardHTML(t, i) {
+    return '<figure class="shot reveal" data-i="' + (i || 0) + '">' +
+      '<div class="shot-img"><img src="' + esc(t.image) + '" alt="Bukti testimoni" loading="lazy" data-full="1"></div>' +
+      "<figcaption>" +
+        (t.label ? '<span class="shot-label">' + esc(t.label) + "</span>" : "") +
+        "<p>" + escLines(t.caption) + "</p>" +
+        (t.date ? '<time datetime="' + esc(t.date) + '">' + esc(fmtDate(t.date)) + "</time>" : "") +
+      "</figcaption>" +
+    "</figure>";
+  }
+  function galleryHTML() {
+    var s = state.site;
+    var n = state.items.length;
+    var head = (s.heading || s.intro)
+      ? '<section class="intro">' +
+          (s.heading ? "<h1>" + esc(s.heading) + "</h1>" : "") +
+          (s.intro ? '<p class="lede">' + escLines(s.intro) + "</p>" : "") +
+        "</section>"
+      : '<div style="height:clamp(2rem,5vw,3rem)"></div>';
+    return head + (n
+      ? '<div class="gallery-head"><h2>' + n + " testimoni</h2></div>" +
+        '<div id="grid" class="gallery">' + state.items.map(cardHTML).join("") + "</div>"
+      : '<div class="empty"><p>Belum ada bukti.</p></div>');
+  }
+
+  function openLightbox(src, cap) {
+    var lb = document.getElementById("lightbox");
+    if (!lb) return;
+    document.getElementById("lbImg").src = src;
+    document.getElementById("lbCap").textContent = cap || "";
+    lb.hidden = false;
+    document.body.style.overflow = "hidden";
+  }
+  function closeLightbox() {
+    var lb = document.getElementById("lightbox");
+    if (!lb || lb.hidden) return;
+    lb.hidden = true;
+    document.getElementById("lbImg").src = "";
+    document.body.style.overflow = "";
+  }
+
+  function revealShots() {
+    var els = root.querySelectorAll(".shot.reveal");
+    if (!els.length) return;
+    var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce || !("IntersectionObserver" in window)) {
+      for (var k = 0; k < els.length; k++) els[k].classList.add("in");
+      return;
+    }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        var el = en.target;
+        var idx = parseInt(el.getAttribute("data-i"), 10) || 0;
+        el.style.transitionDelay = (Math.min(idx, 6) * 80) + "ms";
+        el.classList.add("in");
+        io.unobserve(el);
+        setTimeout(function () { el.style.transitionDelay = ""; }, 1200);
+      });
+    }, { rootMargin: "0px 0px -6% 0px", threshold: 0.06 });
+    for (var j = 0; j < els.length; j++) io.observe(els[j]);
+  }
+
+  function render() {
+    document.title = (state.site.name || "Arta Nusantara") + " — Bukti & Testimoni";
+    root.innerHTML = headerHTML() + '<main class="wrap">' + galleryHTML() + "</main>" + overlaysHTML() + footerHTML();
+
+    var grid = document.getElementById("grid");
+    if (grid) {
+      grid.addEventListener("click", function (ev) {
+        var im = ev.target.closest("img[data-full]");
+        if (!im) return;
+        var fig = im.closest(".shot");
+        var cap = fig ? fig.querySelector("figcaption p") : null;
+        openLightbox(im.getAttribute("src"), cap ? cap.textContent : "");
+      });
+    }
+    document.getElementById("lbClose").addEventListener("click", closeLightbox);
+    document.getElementById("lightbox").addEventListener("click", function (ev) {
+      if (ev.target === this) closeLightbox();
+    });
+    revealShots();
+  }
+
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeLightbox(); });
+
+  fetch("/api/state")
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (data) {
+      if (data && typeof data === "object") {
+        if (Array.isArray(data.items)) state.items = data.items;
+        if (data.site && typeof data.site === "object") state.site = data.site;
+      }
+    })
+    .catch(function () {})
+    .then(render);
+})();
+</script>
+</body>
+</html>

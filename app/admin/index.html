@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="robots" content="noindex,nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23cda65a'/%3E%3Ccircle cx='16' cy='16' r='9.5' fill='none' stroke='%23160f04' stroke-width='1.6'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/assets/app.css?v=1">
+<title>Panel Admin — Bukti &amp; Testimoni</title>
+</head>
+<body>
+<div id="root"><div class="loading">Memuat…</div></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var root = document.getElementById("root");
+  var DEFAULT_SITE = { name: "Arta Nusantara", initials: "AN", logo: "", heading: "Bukti & testimoni klien", intro: "" };
+  var state = { items: [], site: DEFAULT_SITE };
+  var queue = [];
+  var editingId = null;
+  var authed = false;
+  var pendingLogo; // undefined = tak berubah, '' = dihapus, string = baru
+  var booted = false;
+
+  /* ---------- utilitas ---------- */
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function fmtDate(iso) {
+    try { return new Date(iso).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }); }
+    catch (e) { return ""; }
+  }
+  function newTmp() { return "q" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
+  function idxOf(id) { for (var i = 0; i < state.items.length; i++) if (state.items[i].id === id) return i; return -1; }
+
+  function setStatus(msg, isErr) {
+    var s = document.getElementById("status");
+    if (!s) return;
+    s.textContent = msg || "";
+    s.classList.toggle("err", !!isErr);
+  }
+
+  async function api(path, opts) {
+    opts = opts || {};
+    var r = await fetch(path, {
+      method: opts.method || "GET",
+      headers: opts.body ? { "content-type": "application/json" } : undefined,
+      body: opts.body,
+      cache: "no-store",
+    });
+    var data = null;
+    try { data = await r.json(); } catch (e) {}
+    if (r.status === 401) { authed = false; }
+    if (!r.ok) throw new Error((data && data.error) || ("Kesalahan " + r.status));
+    return data || {};
+  }
+
+  /* ---------- gambar ---------- */
+  function loadImage(file) {
+    return new Promise(function (resolve, reject) {
+      if (!file || !/^image\//.test(file.type)) { reject(new Error("Bukan berkas gambar.")); return; }
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function () { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error("Gagal membaca gambar.")); };
+      img.src = url;
+    });
+  }
+  function processImage(file) {
+    return loadImage(file).then(function (img) {
+      var scale = Math.min(1, 1400 / Math.max(img.naturalWidth, img.naturalHeight));
+      var cw = Math.max(1, Math.round(img.naturalWidth * scale));
+      var ch = Math.max(1, Math.round(img.naturalHeight * scale));
+      var c = document.createElement("canvas");
+      c.width = cw; c.height = ch;
+      var ctx = c.getContext("2d");
+      ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, cw, ch);
+      ctx.drawImage(img, 0, 0, cw, ch);
+      var out = c.toDataURL("image/jpeg", 0.85);
+      if (out.length > 1500000) out = c.toDataURL("image/jpeg", 0.72);
+      if (out.length > 3400000) throw new Error("Gambar terlalu besar.");
+      return out;
+    });
+  }
+  function processLogo(file) {
+    return loadImage(file).then(function (img) {
+      var scale = Math.min(1, 256 / Math.max(img.naturalWidth, img.naturalHeight));
+      var cw = Math.max(1, Math.round(img.naturalWidth * scale));
+      var ch = Math.max(1, Math.round(img.naturalHeight * scale));
+      var c = document.createElement("canvas");
+      c.width = cw; c.height = ch;
+      c.getContext("2d").drawImage(img, 0, 0, cw, ch);
+      var out = c.toDataURL("image/png");
+      if (out.length > 460000) {
+        var c2 = document.createElement("canvas"); c2.width = cw; c2.height = ch;
+        var x = c2.getContext("2d");
+        x.fillStyle = "#ffffff"; x.fillRect(0, 0, cw, ch);
+        x.drawImage(img, 0, 0, cw, ch);
+        out = c2.toDataURL("image/jpeg", 0.85);
+      }
+      return out;
+    });
+  }
+
+  /* ---------- potongan tampilan ---------- */
+  function headerHTML() {
+    var s = state.site;
+    var mark = s.logo
+      ? '<img class="mark-img" src="' + esc(s.logo) + '" alt="">'
+      : '<span class="mark" aria-hidden="true">' + esc(s.initials || "·") + "</span>";
+    var right = authed
+      ? '<span class="admin-badge">Admin</span><button id="lockBtn" class="btn-ghost" type="button">Keluar</button>'
+      : '<span class="admin-badge">Admin</span>';
+    return '<header class="site"><div class="wrap bar">' +
+      '<a class="brand" href="/">' + mark +
+        '<span class="brand-tx"><b>' + esc(s.name || "Perusahaan") + "</b><i>Panel Admin</i></span>" +
+      '</a><div class="head-actions">' + right + "</div>" +
+    "</div></header>";
+  }
+
+  function loginHTML() {
+    return '<div class="pinwrap"><form id="loginForm" class="pinbox">' +
+      "<h3>Masuk admin</h3>" +
+      "<p>Kelola bukti &amp; testimoni klien.</p>" +
+      '<label for="u">Username</label>' +
+      '<input id="u" autocomplete="username" autocapitalize="off" spellcheck="false" placeholder="username">' +
+      '<label for="p">Password</label>' +
+      '<input id="p" type="password" autocomplete="current-password" placeholder="password">' +
+      '<div class="pin-actions"><button type="submit" class="submit">Masuk</button>' +
+      '<a href="/" class="btn-ghost">Lihat halaman</a></div>' +
+      '<p id="loginErr" class="status err"></p>' +
+    "</form></div>";
+  }
+
+  function siteBlockHTML() {
+    var s = state.site;
+    var prev = s.logo
+      ? '<img class="logo-prev" src="' + esc(s.logo) + '" alt="">'
+      : '<span class="logo-prev">' + esc(s.initials || "·") + "</span>";
+    return '<details class="siteblock"><summary>Nama, logo &amp; teks sambutan</summary>' +
+      '<form id="siteForm" class="siteform">' +
+        '<div class="field"><label for="s_name">Nama perusahaan</label>' +
+          '<input id="s_name" maxlength="60" value="' + esc(s.name) + '"></div>' +
+        '<div class="field"><label>Logo</label>' +
+          '<div class="logo-row">' + prev +
+            '<label class="btn-ghost sm logo-pick">Unggah logo<input id="s_logo" type="file" accept="image/*" hidden></label>' +
+            (s.logo ? '<button type="button" class="btn-ghost sm" id="s_logo_clear">Hapus logo</button>' : "") +
+          "</div>" +
+          '<p class="hint-sm">PNG transparan disarankan. Bila kosong, dipakai inisial di bawah.</p>' +
+        "</div>" +
+        '<div class="field"><label for="s_initials">Inisial logo (bila tanpa gambar)</label>' +
+          '<input id="s_initials" maxlength="3" value="' + esc(s.initials) + '"></div>' +
+        '<div class="field"><label for="s_heading">Judul di halaman utama <span class="opt">mis. “Bukti &amp; testimoni klien” — boleh dikosongkan</span></label>' +
+          '<input id="s_heading" maxlength="80" value="' + esc(s.heading) + '"></div>' +
+        '<div class="field"><label for="s_intro">Teks di bawah judul <span class="opt">boleh dikosongkan</span></label>' +
+          '<textarea id="s_intro" maxlength="400">' + esc(s.intro) + "</textarea></div>" +
+        '<button type="submit" class="submit sm">Simpan tampilan</button>' +
+      "</form>" +
+    "</details>";
+  }
+
+  function queueItemHTML(q) {
+    return '<div class="qitem" data-tmp="' + esc(q.tmp) + '">' +
+      '<div class="qthumb"><img src="' + esc(q.image) + '" alt=""></div>' +
+      '<div class="qfields">' +
+        '<textarea data-q-caption="' + esc(q.tmp) + '" maxlength="280" placeholder="Keterangan (tampil di bawah foto)">' + esc(q.caption) + "</textarea>" +
+        '<input data-q-label="' + esc(q.tmp) + '" maxlength="80" placeholder="Label singkat — opsional" value="' + esc(q.label) + '">' +
+      "</div>" +
+      '<button class="mini-del" type="button" data-q-del="' + esc(q.tmp) + '" title="Buang dari antrean">&times;</button>' +
+    "</div>";
+  }
+
+  function rowItemHTML(t, i) {
+    var thumb = '<div class="rthumb"><img src="' + esc(t.image) + '" alt=""></div>';
+    if (editingId === t.id) {
+      return '<div class="rowitem" data-id="' + esc(t.id) + '">' + thumb +
+        '<div class="qfields">' +
+          '<textarea data-e-caption="' + esc(t.id) + '" maxlength="280">' + esc(t.caption) + "</textarea>" +
+          '<input data-e-label="' + esc(t.id) + '" maxlength="80" placeholder="Label singkat — opsional" value="' + esc(t.label || "") + '">' +
+          '<div class="row-actions">' +
+            '<button class="submit sm" type="button" data-e-save="' + esc(t.id) + '">Simpan</button>' +
+            '<button class="btn-ghost sm" type="button" data-e-cancel="1">Batal</button>' +
+          "</div>" +
+        "</div>" +
+      "</div>";
+    }
+    return '<div class="rowitem" data-id="' + esc(t.id) + '">' + thumb +
+      '<div class="rmeta">' +
+        (t.label ? '<span class="shot-label">' + esc(t.label) + "</span>" : "") +
+        "<p>" + esc(t.caption) + "</p>" +
+        (t.date ? '<p class="muted-note">' + esc(fmtDate(t.date)) + "</p>" : "") +
+        '<div class="row-actions">' +
+          '<button class="icon" type="button" data-up="' + esc(t.id) + '"' + (i === 0 ? " disabled" : "") + ' title="Naikkan">&#8593;</button>' +
+          '<button class="icon" type="button" data-down="' + esc(t.id) + '"' + (i === state.items.length - 1 ? " disabled" : "") + ' title="Turunkan">&#8595;</button>' +
+          '<button class="btn-ghost sm" type="button" data-edit="' + esc(t.id) + '">Ubah</button>' +
+          '<button class="btn-ghost sm danger" type="button" data-del="' + esc(t.id) + '">Hapus</button>' +
+        "</div>" +
+      "</div>" +
+    "</div>";
+  }
+
+  function consoleHTML() {
+    var mb = JSON.stringify(state).length / 1048576;
+    var warn = mb > 18;
+    var q = queue.length
+      ? '<div class="queue">' +
+          '<div class="queue-head"><h3>' + queue.length + " foto siap diterbitkan</h3>" +
+          '<button class="submit" type="button" id="publishQueue">Terbitkan sekarang</button></div>' +
+          queue.map(queueItemHTML).join("") +
+        "</div>"
+      : "";
+    var rows = state.items.length
+      ? state.items.map(rowItemHTML).join("")
+      : '<p class="muted-note">Belum ada testimoni terbit.</p>';
+    return '<section class="console" id="console">' +
+      '<div class="console-bar"><h2>Panel admin</h2>' +
+        '<span class="meter' + (warn ? " warn" : "") + '">Ruang terpakai: <b>' + mb.toFixed(1) + " MB</b> / 22 MB</span></div>" +
+      siteBlockHTML() +
+      '<div class="dropzone" id="dz">' +
+        '<input id="file" type="file" accept="image/*" multiple>' +
+        '<span class="dz-label"><span class="dz-inner">Pilih atau seret foto testimoni ke sini' +
+        "<small>Bisa banyak sekaligus &middot; JPG/PNG &middot; otomatis dikecilkan</small></span></span>" +
+      "</div>" +
+      '<p id="status" class="status"></p>' + q +
+      '<div class="rowlist"><h3>Kelola testimoni terbit (' + state.items.length + ")</h3>" + rows + "</div>" +
+      '<p class="panel-note">Perubahan langsung tersimpan di server dan tampil di halaman utama ' +
+        "(cache halaman publik ~1 menit).</p>" +
+    "</section>" +
+    '<p class="admin-hint">Halaman publik: <a href="/">Bukti Testimoni</a></p>';
+  }
+
+  /* ---------- aksi ---------- */
+  function addFiles(fileList) {
+    var files = Array.prototype.slice.call(fileList).filter(function (f) { return /^image\//.test(f.type); });
+    if (!files.length) { setStatus("Tidak ada gambar yang dipilih.", true); return; }
+    setStatus("Memproses " + files.length + " gambar…");
+    var ok = 0, bad = 0;
+    Promise.all(files.map(function (f) {
+      return processImage(f)
+        .then(function (u) { queue.push({ tmp: newTmp(), image: u, caption: "", label: "" }); ok++; })
+        .catch(function () { bad++; });
+    })).then(function () {
+      render();
+      setStatus(ok + " foto masuk antrean" + (bad ? ", " + bad + " gagal" : "") + '. Isi keterangan, lalu klik "Terbitkan sekarang".', bad > 0);
+    });
+  }
+  function setQueueField(tmp, key, val) {
+    for (var i = 0; i < queue.length; i++) if (queue[i].tmp === tmp) { queue[i][key] = val; return; }
+  }
+  async function publishQueue() {
+    if (!queue.length) return;
+    for (var i = 0; i < queue.length; i++) {
+      if ((queue[i].caption || "").trim().length < 3) {
+        setStatus("Foto ke-" + (i + 1) + " belum ada keterangan (minimal 3 karakter).", true);
+        return;
+      }
+    }
+    var btn = document.getElementById("publishQueue");
+    if (btn) btn.disabled = true;
+    setStatus("Menerbitkan " + queue.length + " testimoni…");
+    try {
+      var payload = { items: queue.map(function (q) { return { image: q.image, caption: q.caption.trim(), label: (q.label || "").trim() }; }) };
+      var res = await api("/api/testimonials", { method: "POST", body: JSON.stringify(payload) });
+      state.items = res.items || state.items;
+      queue = [];
+      render();
+      setStatus((res.added || 0) + " testimoni diterbitkan dan tampil di urutan teratas.");
+    } catch (e) {
+      if (btn) btn.disabled = false;
+      setStatus(e.message || "Gagal menerbitkan.", true);
+      if (!authed) render();
+    }
+  }
+  async function removeItem(id) {
+    if (idxOf(id) < 0) return;
+    if (!window.confirm("Hapus testimoni ini dari halaman?")) return;
+    try {
+      var res = await api("/api/testimonials/" + encodeURIComponent(id), { method: "DELETE" });
+      state.items = res.items || [];
+      render();
+      setStatus("Testimoni dihapus.");
+    } catch (e) { setStatus(e.message || "Gagal menghapus.", true); if (!authed) render(); }
+  }
+  async function moveItem(id, dir) {
+    var idx = idxOf(id), j = idx + dir;
+    if (idx < 0 || j < 0 || j >= state.items.length) return;
+    var order = state.items.map(function (t) { return t.id; });
+    var tmp = order[idx]; order[idx] = order[j]; order[j] = tmp;
+    try {
+      var res = await api("/api/testimonials/reorder", { method: "POST", body: JSON.stringify({ order: order }) });
+      state.items = res.items || state.items;
+      render();
+      setStatus("Urutan diperbarui.");
+    } catch (e) { setStatus(e.message || "Gagal mengubah urutan.", true); if (!authed) render(); }
+  }
+  async function saveEdit(id) {
+    var capEl = document.querySelector('[data-e-caption="' + id + '"]');
+    var labEl = document.querySelector('[data-e-label="' + id + '"]');
+    if (!capEl) return;
+    var cap = capEl.value.trim(), lab = (labEl ? labEl.value : "").trim();
+    if (cap.length < 3) { setStatus("Keterangan minimal 3 karakter.", true); return; }
+    try {
+      var res = await api("/api/testimonials/" + encodeURIComponent(id), {
+        method: "PUT", body: JSON.stringify({ caption: cap, label: lab }),
+      });
+      state.items = res.items || state.items;
+      editingId = null;
+      render();
+      setStatus("Perubahan disimpan.");
+    } catch (e) { setStatus(e.message || "Gagal menyimpan.", true); if (!authed) render(); }
+  }
+  async function onSaveSite(e) {
+    e.preventDefault();
+    function v(id) { var el = document.getElementById(id); return el ? el.value : ""; }
+    var payload = {
+      name: v("s_name").trim(),
+      initials: v("s_initials").trim(),
+      heading: v("s_heading").trim(),
+      intro: v("s_intro").trim(),
+    };
+    if (pendingLogo !== undefined) payload.logo = pendingLogo;
+    setStatus("Menyimpan tampilan…");
+    try {
+      var res = await api("/api/site", { method: "PUT", body: JSON.stringify(payload) });
+      state.site = res.site || state.site;
+      pendingLogo = undefined;
+      render();
+      setStatus("Tampilan halaman diperbarui.");
+    } catch (err) { setStatus(err.message || "Gagal menyimpan tampilan.", true); if (!authed) render(); }
+  }
+
+  /* ---------- binding ---------- */
+  function bind() {
+    var lockBtn = document.getElementById("lockBtn");
+    if (lockBtn) lockBtn.addEventListener("click", async function () {
+      try { await api("/api/session", { method: "DELETE" }); } catch (e) {}
+      authed = false; queue = []; editingId = null; pendingLogo = undefined;
+      render();
+    });
+
+    var lf = document.getElementById("loginForm");
+    if (lf) lf.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var err = document.getElementById("loginErr");
+      err.textContent = "";
+      var u = document.getElementById("u").value;
+      var p = document.getElementById("p").value;
+      try {
+        await api("/api/session", { method: "POST", body: JSON.stringify({ user: u, pass: p }) });
+        authed = true;
+        await loadState();
+        render();
+      } catch (ex) {
+        err.textContent = ex.message || "Gagal masuk.";
+      }
+    });
+
+    var con = document.getElementById("console");
+    if (con) {
+      var fi = document.getElementById("file");
+      fi.addEventListener("change", function () { if (fi.files && fi.files.length) addFiles(fi.files); });
+
+      var dz = document.getElementById("dz");
+      dz.addEventListener("dragover", function (ev) { ev.preventDefault(); dz.classList.add("over"); });
+      dz.addEventListener("dragleave", function () { dz.classList.remove("over"); });
+      dz.addEventListener("drop", function (ev) {
+        ev.preventDefault(); dz.classList.remove("over");
+        if (ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files.length) addFiles(ev.dataTransfer.files);
+      });
+
+      var sf = document.getElementById("siteForm");
+      if (sf) sf.addEventListener("submit", onSaveSite);
+      var sl = document.getElementById("s_logo");
+      if (sl) sl.addEventListener("change", function () {
+        var f = sl.files && sl.files[0];
+        if (!f) return;
+        setStatus("Memproses logo…");
+        processLogo(f)
+          .then(function (u) { pendingLogo = u; setStatus('Logo dipilih. Klik "Simpan tampilan" untuk menerapkan.'); })
+          .catch(function (err) { setStatus(err.message || "Gagal memproses logo.", true); });
+      });
+
+      con.addEventListener("input", function (ev) {
+        var d = ev.target.dataset;
+        if (d.qCaption != null) setQueueField(d.qCaption, "caption", ev.target.value);
+        else if (d.qLabel != null) setQueueField(d.qLabel, "label", ev.target.value);
+      });
+
+      con.addEventListener("click", function (ev) {
+        var b = ev.target.closest("button");
+        if (!b) return;
+        var d = b.dataset;
+        if (b.id === "publishQueue") return publishQueue();
+        if (b.id === "s_logo_clear") { pendingLogo = ""; setStatus('Logo akan dihapus saat "Simpan tampilan".'); return; }
+        if (d.qDel != null) { queue = queue.filter(function (q) { return q.tmp !== d.qDel; }); render(); return; }
+        if (d.up != null) return moveItem(d.up, -1);
+        if (d.down != null) return moveItem(d.down, 1);
+        if (d.edit != null) { editingId = d.edit; render(); return; }
+        if (d.eCancel != null) { editingId = null; render(); return; }
+        if (d.eSave != null) return saveEdit(d.eSave);
+        if (d.del != null) return removeItem(d.del);
+      });
+    }
+  }
+
+  function render() {
+    root.innerHTML = headerHTML() + '<main class="wrap">' + (authed ? consoleHTML() : loginHTML()) + "</main>";
+    bind();
+  }
+
+  async function loadState() {
+    var d = await api("/api/state");
+    state.items = Array.isArray(d.items) ? d.items : [];
+    state.site = (d.site && typeof d.site === "object") ? d.site : DEFAULT_SITE;
+  }
+
+  async function boot() {
+    try {
+      var s = await api("/api/session");
+      authed = !!(s && s.authed);
+    } catch (e) { authed = false; }
+    if (authed) {
+      try { await loadState(); } catch (e) {}
+    } else {
+      try { await loadState(); } catch (e) {} // supaya nama/logo di header tetap tampil
+    }
+    booted = true;
+    render();
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>
