@@ -135,7 +135,8 @@ a{color:inherit}
 .date-field{display:flex;align-items:center;gap:.6rem;font-family:var(--mono);font-size:.6rem;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
 .date-field input[type=date]{width:auto;flex:0 0 auto;color-scheme:dark;font-size:.86rem;padding:.42rem .55rem}
 .rowlist{display:grid;gap:.7rem}
-.rowitem{display:grid;grid-template-columns:60px 1fr;gap:.85rem;align-items:center;border:1px solid var(--line);border-radius:10px;padding:.6rem}
+.rowitem{display:grid;grid-template-columns:60px 1fr;gap:.85rem;align-items:center;border:1px solid var(--line);border-radius:10px;padding:.6rem;
+  content-visibility:auto;contain-intrinsic-size:auto 88px}
 .rowitem .rthumb{width:60px;height:60px}
 .rmeta{min-width:0}
 .rmeta .shot-label{margin-bottom:.35rem}
